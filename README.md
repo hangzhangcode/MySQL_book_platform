@@ -107,6 +107,9 @@ MySQL_book_platform/
 └── LICENSE               # MIT License
 ```
 
+## Dataset
+The dataset is from Goodreads Book，you can get it on Kaggle. https://www.kaggle.com/datasets/pypiahmad/goodreads-book-reviews1
+
 ## 📝 Features to Extend
 - Add user authentication with encrypted passwords (MD5/SHA256)
 - Implement book inventory management
