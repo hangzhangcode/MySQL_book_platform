@@ -1,7 +1,7 @@
 import streamlit as st
 import pymysql
 import pandas as pd
-import uuid  # 用于生成唯一Key
+import uuid
 
 # ===========================
 # 1. 配置页面与数据库连接
