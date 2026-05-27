@@ -8,7 +8,6 @@ import uuid
 # ===========================
 st.set_page_config(page_title="校园二手闲置平台", layout="wide")
 
-
 # 初始化连接 (加了缓存，避免重复连接)
 @st.cache_resource
 def init_connection():
@@ -20,7 +19,6 @@ def init_connection():
         cursorclass=pymysql.cursors.DictCursor
     )
 
-
 conn = init_connection()
 
 # ===========================
@@ -29,45 +27,77 @@ conn = init_connection()
 st.sidebar.title("🎓 校园二手市场")
 page = st.sidebar.radio("选择功能", ["🏠 首页 (商品浏览)", "➕ 发布闲置", "📊 数据看板 (SQL演示)"])
 
-if st.button(f"立即购买 (ID:{item['item_id']})", key=unique_key):
-    try:
+# ===========================
+# 3. 页面1：首页 (商品浏览) - 【修复 create_time 不存在错误】
+# ===========================
+if page == "🏠 首页 (商品浏览)":
+    st.header("🛒 全部闲置商品")
+
+    # 【修复：改用 item_id 排序，不需要 create_time 字段】
+    @st.cache_data(ttl=60)  # 缓存1分钟，避免频繁查库
+    def get_available_items():
         cursor = conn.cursor()
+        cursor.execute("SELECT * FROM item_info WHERE stock > 0 ORDER BY item_id DESC")
+        return cursor.fetchall()
 
-        # 1. 先查商品信息（卖家、价格、库存）
-        cursor.execute("SELECT seller_id, item_price, stock FROM item_info WHERE item_id = %s", (item['item_id'],))
-        res = cursor.fetchone()
+    items = get_available_items()
 
-        if not res:
-            st.error("❌ 商品不存在或已下架")
-            st.stop()
+    if not items:
+        st.info("暂无在售商品，快去发布吧！")
+    else:
+        # 遍历商品列表
+        for item in items:
+            with st.container():
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.subheader(item['item_name'])
+                    st.caption(f"分类：{item['item_category']}")
+                    st.write(f"价格：¥ {item['item_price']:.2f}")
+                    st.write(f"描述：{item['item_desc']}")
+                with col2:
+                    # 生成唯一key，避免Streamlit组件冲突
+                    unique_key = f"buy_{item['item_id']}_{uuid.uuid4().hex[:8]}"
+                    
+                    if st.button(f"立即购买 (ID:{item['item_id']})", key=unique_key):
+                        try:
+                            cursor = conn.cursor()
 
-        seller_id, item_price, stock = res
+                            # 1. 先查商品信息（卖家、价格、库存）
+                            cursor.execute("SELECT seller_id, item_price, stock FROM item_info WHERE item_id = %s", (item['item_id'],))
+                            res = cursor.fetchone()
 
-        # 2. 库存判断（防超卖）
-        if stock <= 0:
-            st.error("❌ 商品已卖完！")
-            st.stop()
+                            if not res:
+                                st.error("❌ 商品不存在或已下架")
+                                st.stop()
 
-        # 3. 插入订单（核心修复）
-        sql = """
-            INSERT INTO trade_order
-            (item_id, buyer_id, seller_id, order_amount, order_status)
-            VALUES (%s, %s, %s, %s, '待付款')
-        """
-        result = cursor.execute(sql, (item['item_id'], 2, seller_id, item_price))
+                            seller_id, item_price, stock = res
 
-        # 4. 必须提交！
-        conn.commit()
+                            # 2. 库存判断（防超卖）
+                            if stock <= 0:
+                                st.error("❌ 商品已卖完！")
+                                st.stop()
 
-        # 成功提示
-        st.success(f"✅ 下单成功！订单已生成")
-        st.balloons()
-        st.rerun()
+                            # 3. 插入订单
+                            sql = """
+                                INSERT INTO trade_order
+                                (item_id, buyer_id, seller_id, order_amount, order_status)
+                                VALUES (%s, %s, %s, %s, '待付款')
+                            """
+                            cursor.execute(sql, (item['item_id'], 2, seller_id, item_price))
 
-    except Exception as e:
-        # 真正的异常才会进来
-        st.error(f"❌ 下单失败：{str(e)}")
-        print("真实错误：", e)
+                            # 4. 必须提交！
+                            conn.commit()
+
+                            # 成功提示
+                            st.success(f"✅ 下单成功！订单已生成")
+                            st.balloons()
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"❌ 下单失败：{str(e)}")
+                            print("真实错误：", e)
+
+                st.markdown("---")
 
 # ===========================
 # 4. 页面2：发布闲置
@@ -94,14 +124,13 @@ elif page == "➕ 发布闲置":
                 st.success("✅ 发布成功！")
 
                 # 清除首页缓存
-                if 'get_available_items' in globals():
-                    get_available_items.clear()
+                get_available_items.clear()
 
             except Exception as e:
                 st.error(f"❌ 发布失败: {e}")
 
 # ===========================
-# 5. 页面3：数据看板 (SQL演示) - 修复版
+# 5. 页面3：数据看板 (SQL演示)
 # ===========================
 elif page == "📊 数据看板 (SQL演示)":
     st.header("🔍 SQL功能演示区")
@@ -129,7 +158,7 @@ elif page == "📊 数据看板 (SQL演示)":
             st.error(f"❌ 执行失败: {e}")
 
     # --------------------------
-    # 功能2：原始数据查看 (修复版)
+    # 功能2：原始数据查看
     # --------------------------
     st.markdown("---")
     st.subheader("2. 原始数据查看")
@@ -138,9 +167,8 @@ elif page == "📊 数据看板 (SQL演示)":
 
     if st.button(f"查询 {table_name} 表"):
         try:
-            # 修复：使用原生 cursor 先查，再转 DataFrame
             cursor = conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute(f"SELECT * FROM {table_name}")
+            cursor.execute(f"SELECT * FROM {table_name} LIMIT 100")  # 加LIMIT 100防流量爆炸
             rows = cursor.fetchall()
 
             if rows:
