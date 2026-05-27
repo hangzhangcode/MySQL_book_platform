@@ -12,10 +12,10 @@ st.set_page_config(page_title="校园二手闲置平台", layout="wide")
 @st.cache_resource
 def init_connection():
     return pymysql.connect(
-        host="localhost",
-        user="root",
-        password="txb32247",  # 改成你的密码
-        database="campus_db",
+        host=st.secrets["mysql"]["host"],
+        user=st.secrets["mysql"]["user"],
+        password=st.secrets["mysql"]["password"],
+        database=st.secrets["mysql"]["database"],
         cursorclass=pymysql.cursors.DictCursor
     )
 
